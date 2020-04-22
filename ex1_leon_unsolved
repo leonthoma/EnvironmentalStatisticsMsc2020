@@ -1,0 +1,145 @@
+# Exercise to "Refresher in GLM"
+
+library(effects)
+attach(TitanicSurvival)
+
+## 3rd class visualization ----
+# initial model with interactions of age sex and passenger class
+fm <- glm(survived ~ (age + sex + passengerClass)^2, family = binomial, data = Titanic) 
+summary(fm)
+
+anova(fm, test = "Chisq")
+
+# new predictor values
+survived_bin <- as.numeric(survived) - 1 # transform 'yes' and 'no' to 1 and 0, respectively 
+newage <- seq(from = min(age, na.rm = T), to = max(age, na.rm = T), len = 111)
+
+preds.fem <- predict(fm, newdata = data.frame("age" = newage, "sex" = "female", "passengerClass" = "3rd"), se.fit = T)
+preds.m <- predict(fm, newdata = data.frame("age" = newage, "sex" = "male", "passengerClass" = "3rd"), se.fit = T)
+
+# Plot
+
+plot(survived_bin[passengerClass == "3rd"] ~ age[passengerClass == "3rd"], main = "Passenger Class 3", col = ifelse(sex == "female", "red", "blue"), pch ="|", xlim = c(min(age, na.rm = T), max(age, na.rm = T)), las = 1)
+
+# females 
+lines(newage, plogis(preds.fem$fit), col = "red", lwd = 3)
+lines(newage, plogis(preds.fem$fit - 2 * preds.fem$se.fit), col = "red", lwd = 3, lty = 2)
+lines(newage, plogis(preds.fem$fit + 2 * preds.fem$se.fit), col = "red", lwd = 3, lty = 2)
+
+# males
+lines(newage, plogis(preds.m$fit), col = "blue", lwd = 3)
+lines(newage, plogis(preds.m$fit - 2 * preds.m$se.fit), col = "blue", lwd = 3, lty = 2)
+lines(newage, plogis(preds.m$fit + 2 * preds.m$se.fit), col = "blue", lwd = 3, lty = 2)
+
+
+## Exercise ----
+
+library(effects)
+attach(TitanicSurvival)
+
+# Warning ! model might get confounded, due to correlation between ommited parameter and other parameters
+# checking for interactions between parameters
+
+
+# initial model with interactions of age and passenger class
+fm <- glm(survived ~ (age + sex + passengerClass)^2, family = binomial, data = Titanic)
+summary(fm)
+
+anova(fm, test = "Chisq")
+
+# new predictor values
+survived_bin <- as.numeric(survived) - 1 # transform 'yes' and 'no' to 1 and 0, respectively 
+newage <- seq(from = min(age, na.rm = T), to = max(age, na.rm = T), len = 100)
+
+
+# for averages make adjustment based on male female passengers per class to have an "average-gender passenger", e.g. fem * .3 and m * .7 in 3rd class with 30 % female and 70 % males
+
+
+# 1st
+#table(sex[passengerClass == "1st"]) # proportion of m and fem; fem = .44, m = .55
+
+preds.fem.1st <- predict(fm, newdata = data.frame("age" = newage, "sex" = "female", "passengerClass" = "1st"), se.fit = T)
+preds.m.1st <- predict(fm, newdata = data.frame("age" = newage, "sex" = "male", "passengerClass" = "1st"), se.fit = T)
+
+preds.adjust.1st <- preds.m.1st$fit * .55 + preds.fem.1st$fit * .44 # fitted values
+preds.adjust.1st.se <- preds.m.1st$se.fit * .55 + preds.fem.1st$se.fit * .44 # fitted se
+
+# 2nd
+#table(sex[passengerClass == "2nd"]) # proportion of m and fem; fem = .38, m = .62
+
+preds.fem.2nd <- predict(fm, newdata = data.frame("age" = newage, "sex" = "female", "passengerClass" = "2nd"), se.fit = T)
+preds.m.2nd <- predict(fm, newdata = data.frame("age" = newage, "sex" = "male", "passengerClass" = "2nd"), se.fit = T)
+
+preds.adjust.2nd <- preds.m.2nd$fit * .62 + preds.fem.2nd$fit * .38 # fitted values
+preds.adjust.2nd.se <- preds.m.2nd$se.fit * .55 + preds.fem.2nd$se.fit * .44 # fitted se
+
+
+#3rd
+#table(sex[passengerClass == "3rd"]) # proportion of m and fem; fem = .3, m = .7
+
+preds.fem.3rd <- predict(fm, newdata = data.frame("age" = newage, "sex" = "female", "passengerClass" = "3rd"), se.fit = T)
+preds.m.3rd <- predict(fm, newdata = data.frame("age" = newage, "sex" = "male", "passengerClass" = "3rd"), se.fit = T)
+
+preds.adjust.3rd <- preds.m.3rd$fit * .7 + preds.fem.3rd$fit * .3 # fitted values
+preds.adjust.3rd.se <- preds.m.3rd$se.fit * .55 + preds.fem.3rd$se.fit * .44 # fitted se
+
+# Use bootstrapping to calculate CIs
+# upper CI
+mean.ci.1st.up <- NA
+for(i in 1:100) {
+  bs <- sample(preds.adjust.1st, replace = T)
+  bs.se <- sample(preds.adjust.1st.se, replace = T)
+  mean.ci.1st.up[i] <- mean(plogis(bs + 2 * bs.se))
+}
+
+mean.ci.2nd.up <- NA
+for(i in 1:100) {
+  bs <- sample(preds.adjust.2nd, replace = T)
+  bs.se <- sample(preds.adjust.2nd.se, replace = T)
+  mean.ci.2nd.up[i] <- mean(plogis(bs + 2 * bs.se))
+}
+
+mean.ci.3rd.up <- NA
+for(i in 1:100) {
+  bs <- sample(preds.adjust.3rd, replace = T)
+  bs.se <- sample(preds.adjust.3rd.se, replace = T)
+  mean.ci.3rd.up[i] <- plogis(bs + 2 * bs.se)
+}
+
+# lower CI
+mean.ci.1st.low <- NA
+for(i in 1:100) {
+  bs <- sample(preds.adjust.1st, replace = T)
+  bs.se <- sample(preds.adjust.1st.se, replace = T)
+  mean.ci.1st.low[i] <- mean(plogis(bs - 2 * bs.se))
+}
+
+mean.ci.2nd.low <- NA
+for(i in 1:100) {
+  bs <- sample(preds.adjust.2nd, replace = T)
+  bs.se <- sample(preds.adjust.2nd.se, replace = T)
+  mean.ci.2nd.low[i] <- mean(plogis(bs - 2 * bs.se))
+}
+
+mean.ci.3rd.low <- NA
+for(i in 1:100) {
+  bs <- sample(preds.adjust.3rd, replace = T)
+  bs.se <- sample(preds.adjust.3rd.se, replace = T)
+  mean.ci.3rd.low[i] <- plogis(bs - 2 * bs.se)
+}
+
+
+# Plot
+plot(survived_bin ~ age, pch ="|", xlim = c(min(age, na.rm = T), max(age, na.rm = T)), las = 1)
+
+lines(newage, plogis(preds.adjust.1st), col = "red", lwd = 3) # 1st
+lines(newage, mean.ci.1st.low, col = "red", lwd = 3, lty = 2)
+lines(newage, mean.ci.1st.up, col = "red", lwd = 3, lty = 2)
+
+lines(newage, plogis(preds.adjust.2nd), col = "blue", lwd = 3) # 2nd
+lines(newage, mean.ci.2nd.low, col = "blue", lwd = 3, lty = 2)
+lines(newage, mean.ci.2nd.up, col = "blue", lwd = 3, lty = 2)
+
+lines(newage, plogis(preds.adjust.3rd), col = "black", lwd = 3) # 3rd
+lines(newage, mean.ci.3rd.low, col = "black", lwd = 3, lty = 2)
+lines(newage, mean.ci.3rd.up, col = "black", lwd = 3, lty = 2)
